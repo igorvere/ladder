@@ -159,6 +159,7 @@
     tr.cancelled-row td { color: #aaa; }
     td.player-link { cursor: pointer; }
     td.player-link:hover { background: #d6eaf8 !important; }
+    th.col-narrow { width: 2.5em; max-width: 2.5em; text-align: center; padding: 8px 4px; }
 
     .loading { padding: 40px; text-align: center; color: #888; }
     .error { padding: 20px; color: #c0392b; background: #fdecea; border-radius: 6px; }
@@ -263,6 +264,7 @@ function makeTable(headers, rows, highlightName) {
   usedCols.forEach(c => {
     const th = document.createElement('th');
     th.textContent = shortHeader(headers[c] || '');
+    if (CHALLENGE_COLS.has(c)) th.className = 'col-narrow';
     hr.appendChild(th);
   });
 
@@ -365,15 +367,18 @@ function computeStats(rankRows, matchRows, playerName) {
 
   // match stats
   let wins = 0, losses = 0, draws = 0;
-  const playerMatches = matchRows.filter(r => {
+  const allPlayerRows = matchRows.filter(r => {
     const challenger = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
     const opponent   = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
-    if (challenger !== name && opponent !== name) return false;
+    return challenger === name || opponent === name;
+  });
+  const playerMatches = allPlayerRows.filter(r => {
+    const challenger = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
+    const opponent   = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
     const winner = (r[MATCH_WINNER] || '').trim().toLowerCase();
     if (!winner) return true; // scheduled / pending
     const isDraw = winner === 'draw';
     const isValidWinner = winner === challenger || winner === opponent;
-    // exclude cancelled (winner doesn't match either player and isn't Draw)
     return isDraw || isValidWinner;
   });
   playerMatches.forEach(r => {
@@ -384,7 +389,7 @@ function computeStats(rankRows, matchRows, playerName) {
     else losses++;
   });
 
-  return { position, paused, wins, losses, draws, matches: playerMatches };
+  return { position, paused, wins, losses, draws, matches: allPlayerRows };
 }
 
 async function showSheet(name, player) {
