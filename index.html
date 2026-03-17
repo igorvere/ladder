@@ -159,7 +159,7 @@
     tr.cancelled-row td { color: #aaa; }
     td.player-link { cursor: pointer; }
     td.player-link:hover { background: #d6eaf8 !important; }
-    th.col-narrow { width: 2.5em; max-width: 2.5em; text-align: center; padding: 8px 4px; }
+    th.col-narrow, td.col-narrow { width: 2em; max-width: 2em; text-align: center; padding: 8px 2px; }
 
     .loading { padding: 40px; text-align: center; color: #888; }
     .error { padding: 20px; color: #c0392b; background: #fdecea; border-radius: 6px; }
@@ -281,10 +281,11 @@ function makeTable(headers, rows, highlightName) {
         td.onclick = () => selectPlayer(row[c].trim());
       }
       // Yes/No columns → ✅/❌
-      if (CHALLENGE_COLS.has(c) && (row[c] || '').trim()) {
+      if (CHALLENGE_COLS.has(c)) {
+        td.className = 'col-narrow';
         const val = (row[c] || '').trim().toLowerCase();
-        if (val === 'yes') { td.textContent = '✅'; td.style.textAlign = 'center'; }
-        else if (val === 'no') { td.textContent = '❌'; td.style.textAlign = 'center'; }
+        if (val === 'yes') td.textContent = '✅';
+        else if (val === 'no') td.textContent = '❌';
       }
     });
   });
