@@ -154,6 +154,9 @@
     tr.highlight td { background: #fef9e7 !important; font-weight: 600; }
     td.win { color: #1e8449; font-weight: 600; }
     td.loss { color: #c0392b; }
+    td.draw { color: #7d6608; font-weight: 600; }
+    td.cancelled { color: #999; font-style: italic; }
+    tr.cancelled-row td { color: #aaa; }
     td.player-link { cursor: pointer; }
     td.player-link:hover { background: #d6eaf8 !important; }
 
@@ -239,12 +242,27 @@ function makeTable(headers, rows, highlightName) {
     if (headers[c] || rows.some(r => r[c])) usedCols.push(c);
   }
 
+  // Detect yes/no columns by header name
+  const CHALLENGE_COLS = new Set();
+  usedCols.forEach(c => {
+    const h = (headers[c] || '').toLowerCase();
+    if (h.includes('challeng') || h.includes('receiv')) CHALLENGE_COLS.add(c);
+  });
+
+  // Shorten challenge-related headers
+  function shortHeader(h) {
+    const l = h.toLowerCase();
+    if (l.includes('receiv')) return 'Rcv?';
+    if (l.includes('challeng')) return 'Ch?';
+    return h;
+  }
+
   const t = document.createElement('table');
   const thead = t.createTHead();
   const hr = thead.insertRow();
   usedCols.forEach(c => {
     const th = document.createElement('th');
-    th.textContent = headers[c] || '';
+    th.textContent = shortHeader(headers[c] || '');
     hr.appendChild(th);
   });
 
@@ -259,6 +277,12 @@ function makeTable(headers, rows, highlightName) {
       if (c === RANK_NAME_COL && row[c]) {
         td.className = 'player-link';
         td.onclick = () => selectPlayer(row[c].trim());
+      }
+      // Yes/No columns → ✅/❌
+      if (CHALLENGE_COLS.has(c) && (row[c] || '').trim()) {
+        const val = (row[c] || '').trim().toLowerCase();
+        if (val === 'yes') { td.textContent = '✅'; td.style.textAlign = 'center'; }
+        else if (val === 'no') { td.textContent = '❌'; td.style.textAlign = 'center'; }
       }
     });
   });
@@ -288,10 +312,20 @@ function makeMatchTable(headers, rows, playerName) {
     usedCols.forEach(c => {
       const td = tr.insertCell();
       td.textContent = row[c] || '';
-      // colour winner column when filtering by player
-      if (playerName && c === MATCH_WINNER && row[c]) {
-        const won = row[c].trim().toLowerCase() === playerName.trim().toLowerCase();
-        td.className = won ? 'win' : 'loss';
+      // colour winner column
+      if (c === MATCH_WINNER && row[c]) {
+        const winner = row[c].trim().toLowerCase();
+        const challenger = (row[MATCH_CHALLENGER] || '').trim().toLowerCase();
+        const opponent   = (row[MATCH_OPPONENT]   || '').trim().toLowerCase();
+        const isValidWinner = winner === challenger || winner === opponent;
+        if (winner === 'draw') {
+          td.className = 'draw';
+        } else if (!isValidWinner) {
+          td.className = 'cancelled';
+          tr.classList.add('cancelled-row');
+        } else if (playerName && isValidWinner) {
+          td.className = winner === playerName.trim().toLowerCase() ? 'win' : 'loss';
+        }
       }
       if ((c === MATCH_CHALLENGER || c === MATCH_OPPONENT) && row[c]) {
         td.className = 'player-link';
@@ -330,20 +364,27 @@ function computeStats(rankRows, matchRows, playerName) {
   const paused = rankRow && rankRow[0] === 'P';
 
   // match stats
-  let wins = 0, losses = 0;
+  let wins = 0, losses = 0, draws = 0;
   const playerMatches = matchRows.filter(r => {
     const challenger = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
     const opponent   = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
-    return challenger === name || opponent === name;
+    if (challenger !== name && opponent !== name) return false;
+    const winner = (r[MATCH_WINNER] || '').trim().toLowerCase();
+    if (!winner) return true; // scheduled / pending
+    const isDraw = winner === 'draw';
+    const isValidWinner = winner === challenger || winner === opponent;
+    // exclude cancelled (winner doesn't match either player and isn't Draw)
+    return isDraw || isValidWinner;
   });
   playerMatches.forEach(r => {
     const winner = (r[MATCH_WINNER] || '').trim().toLowerCase();
-    if (!winner) return;
+    if (!winner) return; // not played yet
+    if (winner === 'draw') { draws++; return; }
     if (winner === name) wins++;
     else losses++;
   });
 
-  return { position, paused, wins, losses, matches: playerMatches };
+  return { position, paused, wins, losses, draws, matches: playerMatches };
 }
 
 async function showSheet(name, player) {
@@ -364,7 +405,7 @@ async function showSheet(name, player) {
     if (player) {
       // --- Player view ---
       const stats = computeStats(data_rank, data_match, player);
-      const total = stats.wins + stats.losses;
+      const total = stats.wins + stats.losses + stats.draws;
       const winPct = total ? Math.round(stats.wins / total * 100) : 0;
 
       const card = document.createElement('div');
@@ -375,6 +416,7 @@ async function showSheet(name, player) {
         <div class="stat"><div class="stat-value">${total}</div><div class="stat-label">Played</div></div>
         <div class="stat"><div class="stat-value" style="color:#1e8449">${stats.wins}</div><div class="stat-label">Wins</div></div>
         <div class="stat"><div class="stat-value" style="color:#c0392b">${stats.losses}</div><div class="stat-label">Losses</div></div>
+        ${stats.draws ? `<div class="stat"><div class="stat-value" style="color:#7d6608">${stats.draws}</div><div class="stat-label">Draws</div></div>` : ''}
         <div class="stat"><div class="stat-value">${winPct}%</div><div class="stat-label">Win rate</div></div>
       `;
       content.appendChild(card);
