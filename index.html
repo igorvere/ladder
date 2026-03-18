@@ -117,7 +117,8 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
-    .badge-paused { background: #d6eaf8; color: #1a5276; }
+    .badge-promotion { background: #d5f5e3; color: #1e8449; }
+    .badge-relegation { background: #fadbd8; color: #c0392b; }
 
     .section-title {
       font-size: 1.1rem;
@@ -191,7 +192,7 @@ const SHEETS = ['Ladder 3', 'Ladder 4', 'Ladder 5'];
 const RANK_COLS  = { start: 0,  end: 15 };  // A–P
 const MATCH_COLS = { start: 25, end: 29 };  // Z–AD
 
-// Within the rank slice:  0=paused, 1=pos, 2=name, 3=canChallenge, 4=canReceive, 5=challengesMade
+// Within the rank slice:  0=P/R (promotion/relegation), 1=pos, 2=name, 3=canChallenge, 4=canReceive, 5=challengesMade
 // Within the match slice: 0=challengeDate, 1=matchDate, 2=challenger, 3=opponent, 4=winner
 const RANK_NAME_COL  = 2;
 const MATCH_CHALLENGER = 2;
@@ -364,7 +365,7 @@ function computeStats(rankRows, matchRows, playerName) {
   // ranking row
   const rankRow = rankRows.find(r => (r[RANK_NAME_COL] || '').trim().toLowerCase() === name);
   const position = rankRow ? rankRow[1] : '—';
-  const paused = rankRow && rankRow[0] === 'P';
+  const zone = rankRow ? rankRow[0] : '';
 
   // match stats
   let wins = 0, losses = 0, draws = 0;
@@ -390,7 +391,7 @@ function computeStats(rankRows, matchRows, playerName) {
     else losses++;
   });
 
-  return { position, paused, wins, losses, draws, matches: allPlayerRows };
+  return { position, zone, wins, losses, draws, matches: allPlayerRows };
 }
 
 async function showSheet(name, player) {
@@ -417,7 +418,7 @@ async function showSheet(name, player) {
       const card = document.createElement('div');
       card.className = 'player-card';
       card.innerHTML = `
-        <div class="player-name">${player}${stats.paused ? ' <span class="badge badge-paused">Paused</span>' : ''}</div>
+        <div class="player-name">${player}${stats.zone === 'P' ? ' <span class="badge badge-promotion">Promotion</span>' : stats.zone === 'R' ? ' <span class="badge badge-relegation">Relegation</span>' : ''}</div>
         <div class="stat"><div class="stat-value">#${stats.position}</div><div class="stat-label">Position</div></div>
         <div class="stat"><div class="stat-value">${total}</div><div class="stat-label">Played</div></div>
         <div class="stat"><div class="stat-value" style="color:#1e8449">${stats.wins}</div><div class="stat-label">Wins</div></div>
