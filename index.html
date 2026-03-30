@@ -183,14 +183,25 @@
     .rules-content {
       background: white;
       border-radius: 8px;
-      padding: 24px;
+      padding: 24px 32px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
       line-height: 1.7;
       font-size: 0.9rem;
-      white-space: pre-wrap;
-      max-height: 70vh;
+      max-height: 75vh;
       overflow-y: auto;
     }
+    .rules-content h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a5276;
+      margin: 22px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .rules-content h3:first-child { margin-top: 0; }
+    .rules-content p { margin-bottom: 10px; color: #333; }
+    .rules-content ul { margin: 6px 0 12px 22px; }
+    .rules-content li { margin-bottom: 5px; color: #333; }
 
     .loading { padding: 40px; text-align: center; color: #888; }
     .error { padding: 20px; color: #c0392b; background: #fdecea; border-radius: 6px; }
@@ -651,16 +662,76 @@ async function showSheet(name, player) {
   }
 }
 
+function formatRules(text) {
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  const HEADERS = [
+    'Overview',
+    'Exceptions to the Rules',
+    'Abuse',
+    'Ladder Format',
+    'League 1 and 2 Format',
+    'Challenging players above',
+    'Communication',
+    'Match Format',
+    'Short Match Format',
+    'Rechallenges',
+    'Warm up / Late Arrival / No show',
+    'Out of time',
+    'Default / Early Retirement',
+    'Failure to give dates, Walk overs and Match Cancellations',
+    'Temporary  Pause from Challenges',
+    'Court Bookings',
+    'Early Promotions',
+    'Early Promotions from Ladder 3 to League 2',
+    'New Players',
+    'Minimum Activity',
+    'Disputes',
+    'Tennis Rules',
+  ];
+
+  // Find each header in the text (flexible whitespace matching)
+  const found = [];
+  HEADERS.forEach(h => {
+    const re = new RegExp(h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'));
+    const m = re.exec(text);
+    if (m) found.push({ header: h, idx: m.index, bodyStart: m.index + m[0].length });
+  });
+  found.sort((a, b) => a.idx - b.idx);
+
+  let html = '';
+  found.forEach(({ header, bodyStart }, i) => {
+    const bodyEnd = i + 1 < found.length ? found[i + 1].idx : text.length;
+    const body = text.slice(bodyStart, bodyEnd).trim();
+
+    html += `<h3>${esc(header)}</h3>`;
+    if (!body) return;
+
+    // Split into chunks by double (or more) newlines
+    const chunks = body.split(/\n{2,}/).map(c => c.trim()).filter(Boolean);
+
+    chunks.forEach(chunk => {
+      const lines = chunk.split(/\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length > 1) {
+        // Multiple short lines → bullet list
+        html += '<ul>' + lines.map(l => `<li>${esc(l)}</li>`).join('') + '</ul>';
+      } else {
+        html += `<p>${esc(chunk)}</p>`;
+      }
+    });
+  });
+
+  return html || `<p>${esc(text)}</p>`;
+}
+
 async function showRules() {
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading">Loading rules…</div>';
   try {
     const rows = await loadSheet('Overview');
     const text = (rows[0] && rows[0][0]) ? rows[0][0] : 'Rules not found.';
-    // Split on known section headings for readability
-    const formatted = text
-      .replace(/([A-Z][a-z]+ [A-Z][a-z]+|[A-Z]{2,}[^.!?]*)\s+(?=[A-Z])/g, '$1\n\n')
-      .trim();
     content.innerHTML = '';
     const h = document.createElement('div');
     h.className = 'section-title';
@@ -668,7 +739,7 @@ async function showRules() {
     content.appendChild(h);
     const div = document.createElement('div');
     div.className = 'rules-content';
-    div.textContent = text;
+    div.innerHTML = formatRules(text);
     content.appendChild(div);
   } catch (e) {
     content.innerHTML = `<div class="error">Error: ${e.message}</div>`;
