@@ -306,9 +306,9 @@ function parseSheetData(rows) {
     if (nl === 'ltp')             { section = 'ltp';  return; }
     if (META_LABELS.has(nl))      { return; }
 
-    if (/^\d+$/.test(pos))    mainPlayers.push(row);
-    else if (section === 'pool') poolPlayers.push(row);
-    else if (section === 'ltp')  ltpPlayers.push(row);
+    if      (section === 'pool')         poolPlayers.push(row);
+    else if (section === 'ltp')          ltpPlayers.push(row);
+    else if (/^\d+$/.test(pos))          mainPlayers.push(row);
   });
 
   // Matches: only rows with real challenger + opponent
@@ -372,8 +372,23 @@ function makeRankTable(headers, rows, highlightName) {
   return t;
 }
 
-// Build match table with optional sort
-function makeMatchTable(headers, rows, playerName) {
+// Set a player name cell with rank superscript and click handler
+function setPlayerCell(td, name, rankMap) {
+  td.textContent = '';
+  td.className = 'player-link';
+  td.onclick = () => selectPlayer(name);
+  td.appendChild(document.createTextNode(name));
+  const rank = rankMap && rankMap.get(name.toLowerCase());
+  if (rank) {
+    const sup = document.createElement('sup');
+    sup.textContent = rank;
+    sup.style.cssText = 'font-size:0.72em;color:#999;margin-left:2px;font-style:normal;';
+    td.appendChild(sup);
+  }
+}
+
+// Build match table with optional sort and rank superscripts
+function makeMatchTable(headers, rows, playerName, rankMap) {
   const usedCols = [];
   for (let c = 0; c < headers.length; c++) {
     if (headers[c] || rows.some(r => r[c])) usedCols.push(c);
@@ -438,8 +453,7 @@ function makeMatchTable(headers, rows, playerName) {
           } else if (c === MATCH_OPPONENT) {
             td.textContent = '—';
           } else if (c === MATCH_CHALLENGER && challenger) {
-            td.className = 'player-link';
-            td.onclick = () => selectPlayer(challenger);
+            setPlayerCell(td, challenger, rankMap);
           }
           return;
         }
@@ -459,8 +473,7 @@ function makeMatchTable(headers, rows, playerName) {
           }
         }
         if ((c === MATCH_CHALLENGER || c === MATCH_OPPONENT) && row[c]) {
-          td.className = 'player-link';
-          td.onclick = () => selectPlayer(row[c].trim());
+          setPlayerCell(td, row[c].trim(), rankMap);
         }
       });
     });
@@ -532,6 +545,14 @@ async function showSheet(name, player) {
     document.getElementById('timestamp').textContent =
       'Loaded ' + new Date().toLocaleTimeString();
 
+    // Build rank map: lowercase name → position string
+    const rankMap = new Map();
+    parsed.mainPlayers.forEach(r => {
+      const n = (r[RANK_NAME_COL] || '').trim();
+      const p = (r[1] || '').trim();
+      if (n && p) rankMap.set(n.toLowerCase(), p);
+    });
+
     content.innerHTML = '';
 
     if (player) {
@@ -558,7 +579,7 @@ async function showSheet(name, player) {
       `;
       content.appendChild(card);
 
-      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, stats.matches, player));
+      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, stats.matches, player, rankMap));
       addSection(content, 'Full Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, player));
       if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, player));
       if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  player));
@@ -567,7 +588,7 @@ async function showSheet(name, player) {
       addSection(content, 'Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, null));
       if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, null));
       if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  null));
-      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, parsed.validMatches, null));
+      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, parsed.validMatches, null, rankMap));
     }
 
     updatePlayerList(getPlayerNames(parsed));
