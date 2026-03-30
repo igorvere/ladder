@@ -119,6 +119,7 @@
     .badge-relegation { background: #fadbd8; color: #c0392b; }
     .badge-pool { background: #fef9e7; color: #7d6608; }
     .badge-ltp { background: #f0f0f0; color: #666; }
+    .badge-paused { background: #e8eaf6; color: #3949ab; }
 
     .section-title {
       font-size: 1.1rem;
@@ -275,6 +276,11 @@ function sliceCols(rows, colStart, colEnd) {
   return rows.map(r => r.slice(colStart, colEnd + 1));
 }
 
+function getTodayKey() {
+  const d = new Date();
+  return (d.getMonth() + 1) * 100 + d.getDate();
+}
+
 // Parse "1-Jan", "13 January", "1 Jan" → sortable number (month*100+day), null if unparseable
 function parseMatchDate(str) {
   if (!str || !str.trim()) return null;
@@ -320,7 +326,7 @@ function parseSheetData(rows) {
 }
 
 // Build a ranking table for a single section of players
-function makeRankTable(headers, rows, highlightName) {
+function makeRankTable(headers, rows, highlightName, pausedSet) {
   const colCount = headers.length;
   const usedCols = [];
   for (let c = 0; c < colCount; c++) {
@@ -359,6 +365,15 @@ function makeRankTable(headers, rows, highlightName) {
       if (c === RANK_NAME_COL && row[c]) {
         td.className = 'player-link';
         td.onclick = () => selectPlayer(row[c].trim());
+        if (pausedSet && pausedSet.has(row[c].trim().toLowerCase())) {
+          td.textContent = '';
+          td.appendChild(document.createTextNode(row[c]));
+          const badge = document.createElement('span');
+          badge.className = 'badge badge-paused';
+          badge.style.cssText = 'margin-left:6px;font-size:0.72em;vertical-align:middle;';
+          badge.textContent = 'Paused';
+          td.appendChild(badge);
+        }
       }
       if (CHALLENGE_COLS.has(c)) {
         td.className = 'col-narrow';
@@ -372,27 +387,38 @@ function makeRankTable(headers, rows, highlightName) {
   return t;
 }
 
-// Set a player name cell with rank superscript and click handler
-function setPlayerCell(td, name, rankMap) {
+// Set a player name cell with rank superscript and click handler.
+// selfName/selfRank: selected player's name (string) and rank (int) for coloring.
+function setPlayerCell(td, name, rankMap, selfName, selfRank) {
   td.textContent = '';
   td.className = 'player-link';
   td.onclick = () => selectPlayer(name);
   td.appendChild(document.createTextNode(name));
+  // No superscript for the selected player itself
+  if (selfName && name.toLowerCase() === selfName.toLowerCase()) return;
   const rank = rankMap && rankMap.get(name.toLowerCase());
   if (rank) {
+    const rankNum = parseInt(rank);
+    let color = '#999';
+    if (selfRank && !isNaN(rankNum)) {
+      color = rankNum < selfRank ? '#e74c3c' : '#27ae60'; // above=red, below=green
+    }
     const sup = document.createElement('sup');
     sup.textContent = rank;
-    sup.style.cssText = 'font-size:0.72em;color:#999;margin-left:2px;font-style:normal;';
+    sup.style.cssText = `font-size:0.72em;color:${color};margin-left:2px;font-style:normal;`;
     td.appendChild(sup);
   }
 }
 
 // Build match table with optional sort and rank superscripts
-function makeMatchTable(headers, rows, playerName, rankMap) {
+function makeMatchTable(headers, rows, playerName, rankMap, pausedSet) {
   const usedCols = [];
   for (let c = 0; c < headers.length; c++) {
     if (headers[c] || rows.some(r => r[c])) usedCols.push(c);
   }
+
+  const selfName = playerName ? playerName.trim() : null;
+  const selfRank = selfName && rankMap ? parseInt(rankMap.get(selfName.toLowerCase())) || null : null;
 
   let sortCol = null, sortDir = 1;
   let sortedRows = [...rows];
@@ -453,7 +479,7 @@ function makeMatchTable(headers, rows, playerName, rankMap) {
           } else if (c === MATCH_OPPONENT) {
             td.textContent = '—';
           } else if (c === MATCH_CHALLENGER && challenger) {
-            setPlayerCell(td, challenger, rankMap);
+            setPlayerCell(td, challenger, rankMap, selfName, selfRank);
           }
           return;
         }
@@ -473,7 +499,7 @@ function makeMatchTable(headers, rows, playerName, rankMap) {
           }
         }
         if ((c === MATCH_CHALLENGER || c === MATCH_OPPONENT) && row[c]) {
-          setPlayerCell(td, row[c].trim(), rankMap);
+          setPlayerCell(td, row[c].trim(), rankMap, selfName, selfRank);
         }
       });
     });
@@ -532,7 +558,17 @@ function computeStats(parsed, playerName) {
     else losses++;
   });
 
-  return { position, zone, isPool, isLTP, wins, losses, draws, matches: allPlayerMatches };
+  const today = getTodayKey();
+  const isPaused = validMatches.some(r => {
+    const ch = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
+    const op = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
+    if (ch !== name || op !== name) return false;
+    const start = parseMatchDate(r[0]);
+    const end   = parseMatchDate(r[1]);
+    return start !== null && start <= today && (end === null || today <= end);
+  });
+
+  return { position, zone, isPool, isLTP, isPaused, wins, losses, draws, matches: allPlayerMatches };
 }
 
 async function showSheet(name, player) {
@@ -553,6 +589,20 @@ async function showSheet(name, player) {
       if (n && p) rankMap.set(n.toLowerCase(), p);
     });
 
+    // Build paused set: players currently in a pause window
+    const today = getTodayKey();
+    const pausedSet = new Set();
+    parsed.validMatches.forEach(r => {
+      const ch = (r[MATCH_CHALLENGER] || '').trim();
+      const op = (r[MATCH_OPPONENT]   || '').trim();
+      if (!ch || ch.toLowerCase() !== op.toLowerCase()) return;
+      const start = parseMatchDate(r[0]);
+      const end   = parseMatchDate(r[1]);
+      if (start !== null && start <= today && (end === null || today <= end)) {
+        pausedSet.add(ch.toLowerCase());
+      }
+    });
+
     content.innerHTML = '';
 
     if (player) {
@@ -561,10 +611,13 @@ async function showSheet(name, player) {
       const winPct = total ? Math.round(stats.wins / total * 100) : 0;
 
       let badge = '';
-      if (stats.isPool) badge = '<span class="badge badge-pool">New Player Pool</span>';
-      else if (stats.isLTP) badge = '<span class="badge badge-ltp">Long Term Pause</span>';
-      else if (stats.zone === 'P') badge = '<span class="badge badge-promotion">Promotion</span>';
-      else if (stats.zone === 'R') badge = '<span class="badge badge-relegation">Relegation</span>';
+      if (stats.isPool)    badge += '<span class="badge badge-pool">New Player Pool</span> ';
+      if (stats.isLTP)     badge += '<span class="badge badge-ltp">Long Term Pause</span> ';
+      if (stats.isPaused)  badge += '<span class="badge badge-paused">Paused</span> ';
+      if (!stats.isPool && !stats.isLTP) {
+        if (stats.zone === 'P') badge += '<span class="badge badge-promotion">Promotion</span>';
+        if (stats.zone === 'R') badge += '<span class="badge badge-relegation">Relegation</span>';
+      }
 
       const card = document.createElement('div');
       card.className = 'player-card';
@@ -579,16 +632,16 @@ async function showSheet(name, player) {
       `;
       content.appendChild(card);
 
-      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, stats.matches, player, rankMap));
-      addSection(content, 'Full Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, player));
-      if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, player));
-      if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  player));
+      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, stats.matches, player, rankMap, pausedSet));
+      addSection(content, 'Full Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, player, pausedSet));
+      if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, player, pausedSet));
+      if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  player, pausedSet));
 
     } else {
-      addSection(content, 'Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, null));
-      if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, null));
-      if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  null));
-      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, parsed.validMatches, null, rankMap));
+      addSection(content, 'Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, null, pausedSet));
+      if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, null, pausedSet));
+      if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  null, pausedSet));
+      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, parsed.validMatches, null, rankMap, pausedSet));
     }
 
     updatePlayerList(getPlayerNames(parsed));
