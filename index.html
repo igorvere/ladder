@@ -173,6 +173,8 @@
     td.draw { color: #7d6608; font-weight: 600; }
     td.cancelled { color: #999; font-style: italic; }
     tr.cancelled-row td { color: #aaa; }
+    tr.paused-row td { background: #f0f4ff !important; color: #555; font-style: italic; }
+    td.paused-label { color: #5c6bc0; font-style: italic; }
     td.player-link { cursor: pointer; }
     td.player-link:hover { background: #d6eaf8 !important; }
     th.col-narrow, td.col-narrow { width: 2em; max-width: 2em; text-align: center; padding: 8px 2px; }
@@ -317,16 +319,12 @@ function parseSheetData(rows) {
   return { mainPlayers, poolPlayers, ltpPlayers, validMatches, headers_rank, headers_match };
 }
 
-// Build ranking table with main / pool / ltp sections
-function makeRankTable(headers, parsed, highlightName) {
-  const { mainPlayers, poolPlayers, ltpPlayers } = parsed;
+// Build a ranking table for a single section of players
+function makeRankTable(headers, rows, highlightName) {
   const colCount = headers.length;
-
-  // Determine used columns from main players (the full set)
-  const allRows = [...mainPlayers, ...poolPlayers, ...ltpPlayers];
   const usedCols = [];
   for (let c = 0; c < colCount; c++) {
-    if (headers[c] || allRows.some(r => r[c])) usedCols.push(c);
+    if (headers[c] || rows.some(r => r[c])) usedCols.push(c);
   }
 
   const CHALLENGE_COLS = new Set();
@@ -352,39 +350,24 @@ function makeRankTable(headers, parsed, highlightName) {
   });
 
   const tbody = t.createTBody();
-
-  function addRows(rowList, sectionLabel) {
-    if (rowList.length === 0) return;
-    if (sectionLabel) {
-      const divRow = tbody.insertRow();
-      divRow.classList.add('section-divider');
-      const td = divRow.insertCell();
-      td.colSpan = usedCols.length;
-      td.textContent = sectionLabel;
-    }
-    rowList.forEach(row => {
-      const tr = tbody.insertRow();
-      if (highlightName && (row[RANK_NAME_COL] || '').trim() === highlightName) tr.classList.add('highlight');
-      usedCols.forEach(c => {
-        const td = tr.insertCell();
-        td.textContent = row[c] || '';
-        if (c === RANK_NAME_COL && row[c]) {
-          td.className = 'player-link';
-          td.onclick = () => selectPlayer(row[c].trim());
-        }
-        if (CHALLENGE_COLS.has(c)) {
-          td.className = 'col-narrow';
-          const val = (row[c] || '').trim().toLowerCase();
-          if (val === 'yes') td.textContent = '✅';
-          else if (val === 'no') td.textContent = '❌';
-        }
-      });
+  rows.forEach(row => {
+    const tr = tbody.insertRow();
+    if (highlightName && (row[RANK_NAME_COL] || '').trim() === highlightName) tr.classList.add('highlight');
+    usedCols.forEach(c => {
+      const td = tr.insertCell();
+      td.textContent = row[c] || '';
+      if (c === RANK_NAME_COL && row[c]) {
+        td.className = 'player-link';
+        td.onclick = () => selectPlayer(row[c].trim());
+      }
+      if (CHALLENGE_COLS.has(c)) {
+        td.className = 'col-narrow';
+        const val = (row[c] || '').trim().toLowerCase();
+        if (val === 'yes') td.textContent = '✅';
+        else if (val === 'no') td.textContent = '❌';
+      }
     });
-  }
-
-  addRows(mainPlayers, null);
-  if (poolPlayers.length) addRows(poolPlayers, 'New Player Pool');
-  if (ltpPlayers.length)  addRows(ltpPlayers,  'Long Term Pause');
+  });
 
   return t;
 }
@@ -437,15 +420,35 @@ function makeMatchTable(headers, rows, playerName) {
     tbody.innerHTML = '';
     sortedRows.forEach(row => {
       if (!row.some(c => c)) return;
+      const challenger = (row[MATCH_CHALLENGER] || '').trim();
+      const opponent   = (row[MATCH_OPPONENT]   || '').trim();
+      const isPaused   = challenger && challenger.toLowerCase() === opponent.toLowerCase();
+
       const tr = tbody.insertRow();
+      if (isPaused) tr.classList.add('paused-row');
+
       usedCols.forEach(c => {
         const td = tr.insertCell();
         td.textContent = row[c] || '';
+
+        if (isPaused) {
+          if (c === MATCH_WINNER) {
+            td.textContent = 'Paused';
+            td.className = 'paused-label';
+          } else if (c === MATCH_OPPONENT) {
+            td.textContent = '—';
+          } else if (c === MATCH_CHALLENGER && challenger) {
+            td.className = 'player-link';
+            td.onclick = () => selectPlayer(challenger);
+          }
+          return;
+        }
+
         if (c === MATCH_WINNER && row[c]) {
-          const winner     = row[c].trim().toLowerCase();
-          const challenger = (row[MATCH_CHALLENGER] || '').trim().toLowerCase();
-          const opponent   = (row[MATCH_OPPONENT]   || '').trim().toLowerCase();
-          const isValidWinner = winner === challenger || winner === opponent;
+          const winner        = row[c].trim().toLowerCase();
+          const challengerLC  = challenger.toLowerCase();
+          const opponentLC    = opponent.toLowerCase();
+          const isValidWinner = winner === challengerLC || winner === opponentLC;
           if (winner === 'draw') {
             td.className = 'draw';
           } else if (!isValidWinner) {
@@ -496,14 +499,16 @@ function computeStats(parsed, playerName) {
   const isLTP  = ltpPlayers.some( r => (r[RANK_NAME_COL] || '').trim().toLowerCase() === name);
 
   let wins = 0, losses = 0, draws = 0;
-  const allPlayerMatches = validMatches.filter(r =>
-    (r[MATCH_CHALLENGER] || '').trim().toLowerCase() === name ||
-    (r[MATCH_OPPONENT]   || '').trim().toLowerCase() === name
-  );
-  const scoredMatches = allPlayerMatches.filter(r => {
-    const w = (r[MATCH_WINNER] || '').trim().toLowerCase();
+  const allPlayerMatches = validMatches.filter(r => {
     const ch = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
     const op = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
+    return ch === name || op === name;
+  });
+  const scoredMatches = allPlayerMatches.filter(r => {
+    const w  = (r[MATCH_WINNER]     || '').trim().toLowerCase();
+    const ch = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
+    const op = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
+    if (ch === op) return false; // paused rows don't count
     return !w || w === 'draw' || w === ch || w === op;
   });
   scoredMatches.forEach(r => {
@@ -554,11 +559,15 @@ async function showSheet(name, player) {
       content.appendChild(card);
 
       addSection(content, 'Matches', makeMatchTable(parsed.headers_match, stats.matches, player));
-      addSection(content, 'Full Rankings', makeRankTable(parsed.headers_rank, parsed, player));
+      addSection(content, 'Full Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, player));
+      if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, player));
+      if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  player));
 
     } else {
-      addSection(content, 'Rankings', makeRankTable(parsed.headers_rank, parsed, null));
-      addSection(content, 'Matches',  makeMatchTable(parsed.headers_match, parsed.validMatches, null));
+      addSection(content, 'Rankings', makeRankTable(parsed.headers_rank, parsed.mainPlayers, null));
+      if (parsed.poolPlayers.length) addSection(content, 'New Player Pool', makeRankTable(parsed.headers_rank, parsed.poolPlayers, null));
+      if (parsed.ltpPlayers.length)  addSection(content, 'Long Term Pause',  makeRankTable(parsed.headers_rank, parsed.ltpPlayers,  null));
+      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, parsed.validMatches, null));
     }
 
     updatePlayerList(getPlayerNames(parsed));
