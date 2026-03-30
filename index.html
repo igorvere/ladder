@@ -50,6 +50,7 @@
       align-items: center;
       gap: 10px;
     }
+    .toolbar.hidden { display: none; }
     .search-wrap { position: relative; }
     .search-wrap input {
       padding: 8px 12px;
@@ -75,12 +76,8 @@
       display: none;
     }
     .suggestions.open { display: block; }
-    .suggestion {
-      padding: 8px 12px;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-    .suggestion:hover, .suggestion.selected { background: #eaf2fb; }
+    .suggestion { padding: 8px 12px; cursor: pointer; font-size: 0.9rem; }
+    .suggestion:hover { background: #eaf2fb; }
     .clear-btn {
       padding: 8px 14px;
       background: #e0e0e0;
@@ -92,6 +89,7 @@
       display: none;
     }
     .clear-btn.visible { display: inline-block; }
+    .timestamp { margin-left: auto; font-size: 0.78rem; color: #999; }
 
     .content { padding: 24px; max-width: 1200px; margin: 0 auto; }
 
@@ -119,6 +117,8 @@
     }
     .badge-promotion { background: #d5f5e3; color: #1e8449; }
     .badge-relegation { background: #fadbd8; color: #c0392b; }
+    .badge-pool { background: #fef9e7; color: #7d6608; }
+    .badge-ltp { background: #f0f0f0; color: #666; }
 
     .section-title {
       font-size: 1.1rem;
@@ -127,6 +127,15 @@
       color: #1a5276;
       border-left: 4px solid #1a5276;
       padding-left: 10px;
+    }
+    .sub-section {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 16px 0 6px;
+      color: #888;
+      padding-left: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .table-wrap { overflow-x: auto; }
@@ -148,11 +157,17 @@
       white-space: nowrap;
       font-weight: 500;
     }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { background: #154360; }
+    th.sort-asc::after { content: ' ▲'; font-size: 0.7em; }
+    th.sort-desc::after { content: ' ▼'; font-size: 0.7em; }
     td { padding: 8px 12px; border-bottom: 1px solid #eee; white-space: nowrap; }
     tr:last-child td { border-bottom: none; }
     tr:nth-child(even) td { background: #f9f9f9; }
     tr:hover td { background: #eaf2fb; }
     tr.highlight td { background: #fef9e7 !important; font-weight: 600; }
+    tr.section-divider td { background: #f0f4f8; color: #666; font-size: 0.8rem;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 12px; }
     td.win { color: #1e8449; font-weight: 600; }
     td.loss { color: #c0392b; }
     td.draw { color: #7d6608; font-weight: 600; }
@@ -161,6 +176,18 @@
     td.player-link { cursor: pointer; }
     td.player-link:hover { background: #d6eaf8 !important; }
     th.col-narrow, td.col-narrow { width: 2em; max-width: 2em; text-align: center; padding: 8px 2px; }
+
+    .rules-content {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      line-height: 1.7;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
 
     .loading { padding: 40px; text-align: center; color: #888; }
     .error { padding: 20px; color: #c0392b; background: #fdecea; border-radius: 6px; }
@@ -172,12 +199,13 @@
 
 <div class="tabs" id="tabs"></div>
 
-<div class="toolbar">
+<div class="toolbar" id="toolbar">
   <div class="search-wrap">
     <input type="text" id="search" placeholder="Search player…" autocomplete="off">
     <div class="suggestions" id="suggestions"></div>
   </div>
   <button class="clear-btn" id="clearBtn" onclick="clearPlayer()">✕ Clear</button>
+  <span class="timestamp" id="timestamp"></span>
 </div>
 
 <div class="content" id="content">
@@ -186,15 +214,15 @@
 
 <script>
 const SHEET_ID = '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc';
-const SHEETS = ['Ladder 3', 'Ladder 4', 'Ladder 5'];
+const LADDER_SHEETS = ['Ladder 3', 'Ladder 4', 'Ladder 5'];
 
 // Column indices (0-based)
 const RANK_COLS  = { start: 0,  end: 15 };  // A–P
 const MATCH_COLS = { start: 25, end: 29 };  // Z–AD
 
-// Within the rank slice:  0=P/R (promotion/relegation), 1=pos, 2=name, 3=canChallenge, 4=canReceive, 5=challengesMade
-// Within the match slice: 0=challengeDate, 1=matchDate, 2=challenger, 3=opponent, 4=winner
-const RANK_NAME_COL  = 2;
+// Within rank slice:  0=zone(P/R), 1=pos, 2=name, 3=canChallenge, 4=canReceive
+// Within match slice: 0=challengeDate, 1=matchDate, 2=challenger, 3=opponent, 4=winner
+const RANK_NAME_COL    = 2;
 const MATCH_CHALLENGER = 2;
 const MATCH_OPPONENT   = 3;
 const MATCH_WINNER     = 4;
@@ -202,8 +230,16 @@ const MATCH_WINNER     = 4;
 const HEADER_ROW = 1;  // spreadsheet row 2
 const DATA_START = 2;  // spreadsheet row 3
 
+// Labels in col C that are metadata, not player names
+const META_LABELS = new Set([
+  'md ok', 'cd ok', 'cd ok ', 'not ok', 'paused', 'ltp', 'new player pool',
+  'l3 players', 'l4 players', 'l5 players',
+  'l3 challenges', 'l4 challenges', 'l5 challenges',
+  'l3 games / player', 'l4 games / player', 'l5 games / player',
+]);
+
 const cache = {};
-let currentSheet = SHEETS[0];
+let currentSheet = LADDER_SHEETS[0];
 let currentPlayer = null;
 
 function csvUrl(sheet) {
@@ -233,25 +269,71 @@ function parseCSV(text) {
   return rows;
 }
 
-function slice(rows, colStart, colEnd) {
+function sliceCols(rows, colStart, colEnd) {
   return rows.map(r => r.slice(colStart, colEnd + 1));
 }
 
-function makeTable(headers, rows, highlightName) {
+// Parse "1-Jan", "13 January", "1 Jan" → sortable number (month*100+day), null if unparseable
+function parseMatchDate(str) {
+  if (!str || !str.trim()) return null;
+  const MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const m = str.trim().toLowerCase().replace(/[-]+/, ' ').match(/^(\d+)\s+([a-z]+)/);
+  if (!m) return null;
+  const mon = MONTHS[m[2].slice(0,3)];
+  return mon ? mon * 100 + parseInt(m[1]) : null;
+}
+
+// Parse sheet rows into { mainPlayers, poolPlayers, ltpPlayers, validMatches, headers_rank, headers_match }
+function parseSheetData(rows) {
+  const rankSlice  = sliceCols(rows, RANK_COLS.start,  RANK_COLS.end);
+  const matchSlice = sliceCols(rows, MATCH_COLS.start, MATCH_COLS.end);
+
+  const headers_rank  = rankSlice[HEADER_ROW]  || [];
+  const headers_match = matchSlice[HEADER_ROW] || [];
+
+  const mainPlayers = [], poolPlayers = [], ltpPlayers = [];
+  let section = 'main';
+
+  rankSlice.slice(DATA_START).forEach(row => {
+    const pos  = (row[1] || '').trim();
+    const name = (row[RANK_NAME_COL] || '').trim();
+    if (!name) return;
+
+    const nl = name.toLowerCase();
+    if (nl === 'new player pool') { section = 'pool'; return; }
+    if (nl === 'ltp')             { section = 'ltp';  return; }
+    if (META_LABELS.has(nl))      { return; }
+
+    if (/^\d+$/.test(pos))    mainPlayers.push(row);
+    else if (section === 'pool') poolPlayers.push(row);
+    else if (section === 'ltp')  ltpPlayers.push(row);
+  });
+
+  // Matches: only rows with real challenger + opponent
+  const validMatches = matchSlice.slice(DATA_START).filter(r =>
+    (r[MATCH_CHALLENGER] || '').trim() && (r[MATCH_OPPONENT] || '').trim()
+  );
+
+  return { mainPlayers, poolPlayers, ltpPlayers, validMatches, headers_rank, headers_match };
+}
+
+// Build ranking table with main / pool / ltp sections
+function makeRankTable(headers, parsed, highlightName) {
+  const { mainPlayers, poolPlayers, ltpPlayers } = parsed;
   const colCount = headers.length;
+
+  // Determine used columns from main players (the full set)
+  const allRows = [...mainPlayers, ...poolPlayers, ...ltpPlayers];
   const usedCols = [];
   for (let c = 0; c < colCount; c++) {
-    if (headers[c] || rows.some(r => r[c])) usedCols.push(c);
+    if (headers[c] || allRows.some(r => r[c])) usedCols.push(c);
   }
 
-  // Detect yes/no columns by header name
   const CHALLENGE_COLS = new Set();
   usedCols.forEach(c => {
     const h = (headers[c] || '').toLowerCase();
     if (h.includes('challeng') || h.includes('receiv')) CHALLENGE_COLS.add(c);
   });
-
-  // Shorten challenge-related headers
   function shortHeader(h) {
     const l = h.toLowerCase();
     if (l.includes('receiv')) return 'Rcv?';
@@ -270,73 +352,118 @@ function makeTable(headers, rows, highlightName) {
   });
 
   const tbody = t.createTBody();
-  rows.forEach(row => {
-    if (!row.some(c => c)) return;
-    const tr = tbody.insertRow();
-    if (highlightName && row[RANK_NAME_COL] === highlightName) tr.classList.add('highlight');
-    usedCols.forEach(c => {
-      const td = tr.insertCell();
-      td.textContent = row[c] || '';
-      if (c === RANK_NAME_COL && row[c]) {
-        td.className = 'player-link';
-        td.onclick = () => selectPlayer(row[c].trim());
-      }
-      // Yes/No columns → ✅/❌
-      if (CHALLENGE_COLS.has(c)) {
-        td.className = 'col-narrow';
-        const val = (row[c] || '').trim().toLowerCase();
-        if (val === 'yes') td.textContent = '✅';
-        else if (val === 'no') td.textContent = '❌';
-      }
+
+  function addRows(rowList, sectionLabel) {
+    if (rowList.length === 0) return;
+    if (sectionLabel) {
+      const divRow = tbody.insertRow();
+      divRow.classList.add('section-divider');
+      const td = divRow.insertCell();
+      td.colSpan = usedCols.length;
+      td.textContent = sectionLabel;
+    }
+    rowList.forEach(row => {
+      const tr = tbody.insertRow();
+      if (highlightName && (row[RANK_NAME_COL] || '').trim() === highlightName) tr.classList.add('highlight');
+      usedCols.forEach(c => {
+        const td = tr.insertCell();
+        td.textContent = row[c] || '';
+        if (c === RANK_NAME_COL && row[c]) {
+          td.className = 'player-link';
+          td.onclick = () => selectPlayer(row[c].trim());
+        }
+        if (CHALLENGE_COLS.has(c)) {
+          td.className = 'col-narrow';
+          const val = (row[c] || '').trim().toLowerCase();
+          if (val === 'yes') td.textContent = '✅';
+          else if (val === 'no') td.textContent = '❌';
+        }
+      });
     });
-  });
+  }
+
+  addRows(mainPlayers, null);
+  if (poolPlayers.length) addRows(poolPlayers, 'New Player Pool');
+  if (ltpPlayers.length)  addRows(ltpPlayers,  'Long Term Pause');
+
   return t;
 }
 
+// Build match table with optional sort
 function makeMatchTable(headers, rows, playerName) {
-  // headers and rows are already sliced to MATCH_COLS
   const usedCols = [];
   for (let c = 0; c < headers.length; c++) {
     if (headers[c] || rows.some(r => r[c])) usedCols.push(c);
   }
 
+  let sortCol = null, sortDir = 1;
+  let sortedRows = [...rows];
+
   const t = document.createElement('table');
   const thead = t.createTHead();
   const hr = thead.insertRow();
-  usedCols.forEach(c => {
+  const ths = [];
+  usedCols.forEach((c, i) => {
     const th = document.createElement('th');
     th.textContent = headers[c] || '';
+    // Make first two columns (challenge date, match date) sortable
+    if (i < 2) {
+      th.classList.add('sortable');
+      th.addEventListener('click', () => {
+        if (sortCol === c) sortDir = -sortDir;
+        else { sortCol = c; sortDir = 1; }
+        ths.forEach((h, j) => {
+          h.classList.remove('sort-asc', 'sort-desc');
+          if (j < 2 && usedCols[j] === sortCol) h.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+        });
+        sortedRows.sort((a, b) => {
+          const da = parseMatchDate(a[c]);
+          const db = parseMatchDate(b[c]);
+          if (da === null && db === null) return 0;
+          if (da === null) return sortDir;
+          if (db === null) return -sortDir;
+          return (da - db) * sortDir;
+        });
+        rebuildBody();
+      });
+    }
     hr.appendChild(th);
+    ths.push(th);
   });
 
   const tbody = t.createTBody();
-  rows.forEach(row => {
-    if (!row.some(c => c)) return;
-    const tr = tbody.insertRow();
-    usedCols.forEach(c => {
-      const td = tr.insertCell();
-      td.textContent = row[c] || '';
-      // colour winner column
-      if (c === MATCH_WINNER && row[c]) {
-        const winner = row[c].trim().toLowerCase();
-        const challenger = (row[MATCH_CHALLENGER] || '').trim().toLowerCase();
-        const opponent   = (row[MATCH_OPPONENT]   || '').trim().toLowerCase();
-        const isValidWinner = winner === challenger || winner === opponent;
-        if (winner === 'draw') {
-          td.className = 'draw';
-        } else if (!isValidWinner) {
-          td.className = 'cancelled';
-          tr.classList.add('cancelled-row');
-        } else if (playerName && isValidWinner) {
-          td.className = winner === playerName.trim().toLowerCase() ? 'win' : 'loss';
+
+  function rebuildBody() {
+    tbody.innerHTML = '';
+    sortedRows.forEach(row => {
+      if (!row.some(c => c)) return;
+      const tr = tbody.insertRow();
+      usedCols.forEach(c => {
+        const td = tr.insertCell();
+        td.textContent = row[c] || '';
+        if (c === MATCH_WINNER && row[c]) {
+          const winner     = row[c].trim().toLowerCase();
+          const challenger = (row[MATCH_CHALLENGER] || '').trim().toLowerCase();
+          const opponent   = (row[MATCH_OPPONENT]   || '').trim().toLowerCase();
+          const isValidWinner = winner === challenger || winner === opponent;
+          if (winner === 'draw') {
+            td.className = 'draw';
+          } else if (!isValidWinner) {
+            td.className = 'cancelled';
+            tr.classList.add('cancelled-row');
+          } else if (playerName) {
+            td.className = winner === playerName.trim().toLowerCase() ? 'win' : 'loss';
+          }
         }
-      }
-      if ((c === MATCH_CHALLENGER || c === MATCH_OPPONENT) && row[c]) {
-        td.className = 'player-link';
-        td.onclick = () => selectPlayer(row[c].trim());
-      }
+        if ((c === MATCH_CHALLENGER || c === MATCH_OPPONENT) && row[c]) {
+          td.className = 'player-link';
+          td.onclick = () => selectPlayer(row[c].trim());
+        }
+      });
     });
-  });
+  }
+
+  rebuildBody();
   return t;
 }
 
@@ -349,49 +476,45 @@ async function loadSheet(name) {
   return cache[name];
 }
 
-function getPlayers(rows) {
-  const names = [];
-  const dataRows = slice(rows, RANK_COLS.start, RANK_COLS.end).slice(DATA_START);
-  dataRows.forEach(row => {
-    const name = (row[RANK_NAME_COL] || '').trim();
-    if (name) names.push(name);
-  });
-  return names;
+function getPlayerNames(parsed) {
+  const { mainPlayers, poolPlayers, ltpPlayers } = parsed;
+  return [...mainPlayers, ...poolPlayers, ...ltpPlayers]
+    .map(r => (r[RANK_NAME_COL] || '').trim())
+    .filter(Boolean);
 }
 
-function computeStats(rankRows, matchRows, playerName) {
+function computeStats(parsed, playerName) {
+  const { mainPlayers, poolPlayers, ltpPlayers, validMatches } = parsed;
   const name = playerName.trim().toLowerCase();
 
-  // ranking row
-  const rankRow = rankRows.find(r => (r[RANK_NAME_COL] || '').trim().toLowerCase() === name);
-  const position = rankRow ? rankRow[1] : '—';
+  const allPlayers = [...mainPlayers, ...poolPlayers, ...ltpPlayers];
+  const rankRow = allPlayers.find(r => (r[RANK_NAME_COL] || '').trim().toLowerCase() === name);
+  const position = rankRow ? (rankRow[1] || '—') : '—';
   const zone = rankRow ? rankRow[0] : '';
 
-  // match stats
+  const isPool = poolPlayers.some(r => (r[RANK_NAME_COL] || '').trim().toLowerCase() === name);
+  const isLTP  = ltpPlayers.some( r => (r[RANK_NAME_COL] || '').trim().toLowerCase() === name);
+
   let wins = 0, losses = 0, draws = 0;
-  const allPlayerRows = matchRows.filter(r => {
-    const challenger = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
-    const opponent   = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
-    return challenger === name || opponent === name;
+  const allPlayerMatches = validMatches.filter(r =>
+    (r[MATCH_CHALLENGER] || '').trim().toLowerCase() === name ||
+    (r[MATCH_OPPONENT]   || '').trim().toLowerCase() === name
+  );
+  const scoredMatches = allPlayerMatches.filter(r => {
+    const w = (r[MATCH_WINNER] || '').trim().toLowerCase();
+    const ch = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
+    const op = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
+    return !w || w === 'draw' || w === ch || w === op;
   });
-  const playerMatches = allPlayerRows.filter(r => {
-    const challenger = (r[MATCH_CHALLENGER] || '').trim().toLowerCase();
-    const opponent   = (r[MATCH_OPPONENT]   || '').trim().toLowerCase();
-    const winner = (r[MATCH_WINNER] || '').trim().toLowerCase();
-    if (!winner) return true; // scheduled / pending
-    const isDraw = winner === 'draw';
-    const isValidWinner = winner === challenger || winner === opponent;
-    return isDraw || isValidWinner;
-  });
-  playerMatches.forEach(r => {
-    const winner = (r[MATCH_WINNER] || '').trim().toLowerCase();
-    if (!winner) return; // not played yet
-    if (winner === 'draw') { draws++; return; }
-    if (winner === name) wins++;
+  scoredMatches.forEach(r => {
+    const w = (r[MATCH_WINNER] || '').trim().toLowerCase();
+    if (!w) return;
+    if (w === 'draw') draws++;
+    else if (w === name) wins++;
     else losses++;
   });
 
-  return { position, zone, wins, losses, draws, matches: allPlayerRows };
+  return { position, zone, isPool, isLTP, wins, losses, draws, matches: allPlayerMatches };
 }
 
 async function showSheet(name, player) {
@@ -399,26 +522,28 @@ async function showSheet(name, player) {
   content.innerHTML = '<div class="loading">Loading ' + name + '…</div>';
   try {
     const rows = await loadSheet(name);
-    const rankSlice  = slice(rows, RANK_COLS.start,  RANK_COLS.end);
-    const matchSlice = slice(rows, MATCH_COLS.start, MATCH_COLS.end);
+    const parsed = parseSheetData(rows);
 
-    const headers_rank  = rankSlice[HEADER_ROW]  || [];
-    const headers_match = matchSlice[HEADER_ROW] || [];
-    const data_rank     = rankSlice.slice(DATA_START);
-    const data_match    = matchSlice.slice(DATA_START);
+    document.getElementById('timestamp').textContent =
+      'Loaded ' + new Date().toLocaleTimeString();
 
     content.innerHTML = '';
 
     if (player) {
-      // --- Player view ---
-      const stats = computeStats(data_rank, data_match, player);
+      const stats = computeStats(parsed, player);
       const total = stats.wins + stats.losses + stats.draws;
       const winPct = total ? Math.round(stats.wins / total * 100) : 0;
+
+      let badge = '';
+      if (stats.isPool) badge = '<span class="badge badge-pool">New Player Pool</span>';
+      else if (stats.isLTP) badge = '<span class="badge badge-ltp">Long Term Pause</span>';
+      else if (stats.zone === 'P') badge = '<span class="badge badge-promotion">Promotion</span>';
+      else if (stats.zone === 'R') badge = '<span class="badge badge-relegation">Relegation</span>';
 
       const card = document.createElement('div');
       card.className = 'player-card';
       card.innerHTML = `
-        <div class="player-name">${player}${stats.zone === 'P' ? ' <span class="badge badge-promotion">Promotion</span>' : stats.zone === 'R' ? ' <span class="badge badge-relegation">Relegation</span>' : ''}</div>
+        <div class="player-name">${player} ${badge}</div>
         <div class="stat"><div class="stat-value">#${stats.position}</div><div class="stat-label">Position</div></div>
         <div class="stat"><div class="stat-value">${total}</div><div class="stat-label">Played</div></div>
         <div class="stat"><div class="stat-value" style="color:#1e8449">${stats.wins}</div><div class="stat-label">Wins</div></div>
@@ -428,26 +553,40 @@ async function showSheet(name, player) {
       `;
       content.appendChild(card);
 
-      addSection(content, 'Matches', makeMatchTable(headers_match, stats.matches, player));
-
-      const rt = document.createElement('div');
-      rt.className = 'section-title';
-      rt.textContent = 'Full Rankings';
-      content.appendChild(rt);
-      const rw = document.createElement('div');
-      rw.className = 'table-wrap';
-      rw.appendChild(makeTable(headers_rank, data_rank, player));
-      content.appendChild(rw);
+      addSection(content, 'Matches', makeMatchTable(parsed.headers_match, stats.matches, player));
+      addSection(content, 'Full Rankings', makeRankTable(parsed.headers_rank, parsed, player));
 
     } else {
-      // --- Default view ---
-      addSection(content, 'Rankings', makeTable(headers_rank, data_rank));
-      addSection(content, 'Matches',  makeMatchTable(headers_match, data_match, null));
+      addSection(content, 'Rankings', makeRankTable(parsed.headers_rank, parsed, null));
+      addSection(content, 'Matches',  makeMatchTable(parsed.headers_match, parsed.validMatches, null));
     }
 
-    // populate autocomplete with current sheet's players
-    updatePlayerList(rows);
+    updatePlayerList(getPlayerNames(parsed));
 
+  } catch (e) {
+    content.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+  }
+}
+
+async function showRules() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading">Loading rules…</div>';
+  try {
+    const rows = await loadSheet('Overview');
+    const text = (rows[0] && rows[0][0]) ? rows[0][0] : 'Rules not found.';
+    // Split on known section headings for readability
+    const formatted = text
+      .replace(/([A-Z][a-z]+ [A-Z][a-z]+|[A-Z]{2,}[^.!?]*)\s+(?=[A-Z])/g, '$1\n\n')
+      .trim();
+    content.innerHTML = '';
+    const h = document.createElement('div');
+    h.className = 'section-title';
+    h.textContent = 'Rules & Overview';
+    content.appendChild(h);
+    const div = document.createElement('div');
+    div.className = 'rules-content';
+    div.textContent = text;
+    content.appendChild(div);
   } catch (e) {
     content.innerHTML = `<div class="error">Error: ${e.message}</div>`;
   }
@@ -467,8 +606,8 @@ function addSection(parent, title, table) {
 // ---- Autocomplete ----
 let allPlayers = [];
 
-function updatePlayerList(rows) {
-  allPlayers = getPlayers(rows);
+function updatePlayerList(names) {
+  allPlayers = names;
 }
 
 function showSuggestions(query) {
@@ -502,9 +641,7 @@ function clearPlayer() {
   showSheet(currentSheet, null);
 }
 
-document.getElementById('search').addEventListener('input', e => {
-  showSuggestions(e.target.value);
-});
+document.getElementById('search').addEventListener('input', e => showSuggestions(e.target.value));
 document.getElementById('search').addEventListener('blur', () => {
   setTimeout(() => document.getElementById('suggestions').classList.remove('open'), 150);
 });
@@ -519,7 +656,9 @@ document.getElementById('search').addEventListener('keydown', e => {
 // ---- Tabs ----
 function buildTabs() {
   const tabsEl = document.getElementById('tabs');
-  SHEETS.forEach((name, i) => {
+  const toolbar = document.getElementById('toolbar');
+
+  LADDER_SHEETS.forEach((name, i) => {
     const btn = document.createElement('div');
     btn.className = 'tab' + (i === 0 ? ' active' : '');
     btn.textContent = name;
@@ -530,10 +669,23 @@ function buildTabs() {
       currentPlayer = null;
       document.getElementById('search').value = '';
       document.getElementById('clearBtn').classList.remove('visible');
+      toolbar.classList.remove('hidden');
       showSheet(name, null);
     };
     tabsEl.appendChild(btn);
   });
+
+  // Rules tab
+  const rulesBtn = document.createElement('div');
+  rulesBtn.className = 'tab';
+  rulesBtn.textContent = 'Rules';
+  rulesBtn.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    rulesBtn.classList.add('active');
+    toolbar.classList.add('hidden');
+    showRules();
+  };
+  tabsEl.appendChild(rulesBtn);
 }
 
 buildTabs();
