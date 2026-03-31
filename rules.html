@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tennis Ladder – Rules</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+
+    header {
+      background: #1a5276;
+      color: white;
+      padding: 16px 24px;
+      font-size: 1.3rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 400;
+    }
+    header a:hover { color: white; }
+
+    #content {
+      padding: 24px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1a5276;
+      margin-bottom: 16px;
+    }
+
+    .rules-content {
+      background: white;
+      border-radius: 8px;
+      padding: 24px 32px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      line-height: 1.7;
+      font-size: 0.9rem;
+    }
+    .rules-content h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a5276;
+      margin: 22px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .rules-content h3:first-child { margin-top: 0; }
+    .rules-content p { margin-bottom: 10px; color: #333; }
+    .rules-content ul { margin: 6px 0 12px 22px; }
+    .rules-content li { margin-bottom: 5px; color: #333; }
+
+    .loading { padding: 40px; text-align: center; color: #888; }
+    .error { padding: 20px; color: #c0392b; background: #fdecea; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+<header>
+  🎾 Tennis Ladder
+  <a href="index.html">← Back to Ladder</a>
+</header>
+
+<div id="content"><div class="loading">Loading rules…</div></div>
+
+<script>
+const SHEET_ID = '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc';
+
+function parseCSV(text) {
+  const rows = [];
+  let i = 0;
+  while (i < text.length) {
+    const row = [];
+    while (i < text.length && text[i] !== '\n') {
+      if (text[i] === '"') {
+        i++;
+        let cell = '';
+        while (i < text.length) {
+          if (text[i] === '"' && text[i+1] === '"') { cell += '"'; i += 2; }
+          else if (text[i] === '"') { i++; break; }
+          else { cell += text[i++]; }
+        }
+        row.push(cell);
+        if (text[i] === ',') i++;
+      } else {
+        let cell = '';
+        while (i < text.length && text[i] !== ',' && text[i] !== '\n') cell += text[i++];
+        row.push(cell);
+        if (text[i] === ',') i++;
+      }
+    }
+    if (text[i] === '\n') i++;
+    rows.push(row);
+  }
+  return rows;
+}
+
+function formatRules(text) {
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  const HEADERS = [
+    'Overview',
+    'Exceptions to the Rules',
+    'Abuse',
+    'Ladder Format',
+    'League 1 and 2 Format',
+    'Challenging players above',
+    'Communication',
+    'Match Format',
+    'Short Match Format',
+    'Rechallenges',
+    'Warm up / Late Arrival / No show',
+    'Out of time',
+    'Default / Early Retirement',
+    'Failure to give dates, Walk overs and Match Cancellations',
+    'Temporary  Pause from Challenges',
+    'Court Bookings',
+    'Early Promotions',
+    'Early Promotions from Ladder 3 to League 2',
+    'New Players',
+    'Minimum Activity',
+    'Disputes',
+    'Tennis Rules',
+  ];
+
+  const found = [];
+  HEADERS.forEach(h => {
+    const re = new RegExp(h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'));
+    const m = re.exec(text);
+    if (m) found.push({ header: h, idx: m.index, bodyStart: m.index + m[0].length });
+  });
+  found.sort((a, b) => a.idx - b.idx);
+
+  let html = '';
+  found.forEach(({ header, bodyStart }, i) => {
+    const bodyEnd = i + 1 < found.length ? found[i + 1].idx : text.length;
+    const body = text.slice(bodyStart, bodyEnd).trim();
+
+    html += `<h3>${esc(header)}</h3>`;
+    if (!body) return;
+
+    const chunks = body.split(/\n{2,}/).map(c => c.trim()).filter(Boolean);
+    chunks.forEach(chunk => {
+      const lines = chunk.split(/\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length > 1) {
+        html += '<ul>' + lines.map(l => `<li>${esc(l)}</li>`).join('') + '</ul>';
+      } else {
+        html += `<p>${esc(chunk)}</p>`;
+      }
+    });
+  });
+
+  return html || `<p>${esc(text)}</p>`;
+}
+
+async function load() {
+  const content = document.getElementById('content');
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Overview`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    const rows = parseCSV(text);
+    const rulesText = (rows[0] && rows[0][0]) ? rows[0][0] : 'Rules not found.';
+
+    content.innerHTML = '';
+    const h = document.createElement('div');
+    h.className = 'section-title';
+    h.textContent = 'Rules & Overview';
+    content.appendChild(h);
+    const div = document.createElement('div');
+    div.className = 'rules-content';
+    div.innerHTML = formatRules(rulesText);
+    content.appendChild(div);
+  } catch (e) {
+    content.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+  }
+}
+
+load();
+</script>
+</body>
+</html>

@@ -15,7 +15,20 @@
       font-size: 1.3rem;
       font-weight: 600;
       letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
+    header a.rules-link {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 400;
+      border: 1px solid rgba(255,255,255,0.4);
+      padding: 4px 12px;
+      border-radius: 4px;
+    }
+    header a.rules-link:hover { background: rgba(255,255,255,0.15); color: white; }
 
     .tabs {
       display: flex;
@@ -209,7 +222,7 @@
 </head>
 <body>
 
-<header>🎾 Tennis Ladder</header>
+<header>🎾 Tennis Ladder <a class="rules-link" href="rules.html">Rules</a></header>
 
 <div class="tabs" id="tabs"></div>
 
@@ -843,17 +856,6 @@ function buildTabs() {
     tabsEl.appendChild(btn);
   });
 
-  // Rules tab
-  const rulesBtn = document.createElement('div');
-  rulesBtn.className = 'tab';
-  rulesBtn.textContent = 'Rules';
-  rulesBtn.onclick = () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    rulesBtn.classList.add('active');
-    toolbar.classList.add('hidden');
-    showRules();
-  };
-  tabsEl.appendChild(rulesBtn);
 }
 
 buildTabs();
