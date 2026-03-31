@@ -253,8 +253,19 @@ const META_LABELS = new Set([
 ]);
 
 const cache = {};
-let currentSheet = LADDER_SHEETS[0];
-let currentPlayer = null;
+const _urlParams = new URLSearchParams(location.search);
+const _urlSheet  = _urlParams.get('ladder');
+const _urlPlayer = _urlParams.get('player');
+let currentSheet  = (LADDER_SHEETS.includes(_urlSheet) ? _urlSheet : null) || LADDER_SHEETS[0];
+let currentPlayer = _urlPlayer || null;
+
+function updateUrl(sheet, player) {
+  const p = new URLSearchParams();
+  if (sheet)  p.set('ladder', sheet);
+  if (player) p.set('player', player);
+  const qs = p.toString();
+  history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+}
 
 function csvUrl(sheet) {
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
@@ -785,6 +796,7 @@ function selectPlayer(name) {
   document.getElementById('search').value = name;
   document.getElementById('suggestions').classList.remove('open');
   document.getElementById('clearBtn').classList.add('visible');
+  updateUrl(currentSheet, name);
   showSheet(currentSheet, name);
 }
 
@@ -792,6 +804,7 @@ function clearPlayer() {
   currentPlayer = null;
   document.getElementById('search').value = '';
   document.getElementById('clearBtn').classList.remove('visible');
+  updateUrl(currentSheet, null);
   showSheet(currentSheet, null);
 }
 
@@ -824,6 +837,7 @@ function buildTabs() {
       document.getElementById('search').value = '';
       document.getElementById('clearBtn').classList.remove('visible');
       toolbar.classList.remove('hidden');
+      updateUrl(name, null);
       showSheet(name, null);
     };
     tabsEl.appendChild(btn);
@@ -843,7 +857,16 @@ function buildTabs() {
 }
 
 buildTabs();
-showSheet(currentSheet, null);
+// Activate tab matching URL param
+document.querySelectorAll('.tab').forEach(btn => {
+  if (btn.textContent === currentSheet) btn.classList.add('active');
+  else btn.classList.remove('active');
+});
+if (currentPlayer) {
+  document.getElementById('search').value = currentPlayer;
+  document.getElementById('clearBtn').classList.add('visible');
+}
+showSheet(currentSheet, currentPlayer);
 </script>
 </body>
 </html>
