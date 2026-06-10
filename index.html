@@ -103,6 +103,17 @@
     }
     .clear-btn.visible { display: inline-block; }
     .timestamp { margin-left: auto; font-size: 0.78rem; color: #999; }
+    .period-select {
+      padding: 7px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: #333;
+      background: white;
+      cursor: pointer;
+      outline: none;
+    }
+    .period-select:focus { border-color: #1a5276; }
 
     .content { padding: 24px; max-width: 1200px; margin: 0 auto; }
 
@@ -233,6 +244,7 @@
   </div>
   <button class="clear-btn" id="clearBtn" onclick="clearPlayer()">✕ Clear</button>
   <span class="timestamp" id="timestamp"></span>
+  <select id="periodSelect" class="period-select"></select>
 </div>
 
 <div class="content" id="content">
@@ -240,7 +252,10 @@
 </div>
 
 <script>
-const SHEET_ID = '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc';
+const PERIODS = [
+  { label: 'Q2 2026', id: '1yEUFsPAidv5MTFOB7ZTNdETZUin-BXvzAqXTpp6m68M' },
+  { label: 'Q1 2026', id: '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc' },
+];
 const LADDER_SHEETS = ['Ladder 3', 'Ladder 4', 'Ladder 5'];
 
 // Column indices (0-based)
@@ -269,11 +284,14 @@ const cache = {};
 const _urlParams = new URLSearchParams(location.search);
 const _urlSheet  = _urlParams.get('ladder');
 const _urlPlayer = _urlParams.get('player');
+const _urlPeriod = _urlParams.get('period');
 let currentSheet  = (LADDER_SHEETS.includes(_urlSheet) ? _urlSheet : null) || LADDER_SHEETS[0];
 let currentPlayer = _urlPlayer || null;
+let currentPeriod = PERIODS.find(p => p.label === _urlPeriod) || PERIODS[0];
 
 function updateUrl(sheet, player) {
   const p = new URLSearchParams();
+  if (currentPeriod.label !== PERIODS[0].label) p.set('period', currentPeriod.label);
   if (sheet)  p.set('ladder', sheet);
   if (player) p.set('player', player);
   const qs = p.toString();
@@ -281,7 +299,7 @@ function updateUrl(sheet, player) {
 }
 
 function csvUrl(sheet) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
+  return `https://docs.google.com/spreadsheets/d/${currentPeriod.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
 }
 
 function parseCSV(text) {
@@ -858,7 +876,28 @@ function buildTabs() {
 
 }
 
+function buildPeriodSelect() {
+  const sel = document.getElementById('periodSelect');
+  PERIODS.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.label;
+    opt.textContent = p.label;
+    if (p.label === currentPeriod.label) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', () => {
+    currentPeriod = PERIODS.find(p => p.label === sel.value) || PERIODS[0];
+    Object.keys(cache).forEach(k => delete cache[k]);
+    currentPlayer = null;
+    document.getElementById('search').value = '';
+    document.getElementById('clearBtn').classList.remove('visible');
+    updateUrl(currentSheet, null);
+    showSheet(currentSheet, null);
+  });
+}
+
 buildTabs();
+buildPeriodSelect();
 // Activate tab matching URL param
 document.querySelectorAll('.tab').forEach(btn => {
   if (btn.textContent === currentSheet) btn.classList.add('active');
