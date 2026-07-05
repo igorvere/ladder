@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Wimbledon Ticket</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: #111;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  /* ---------- outer frame (only visible as a bezel on wide/desktop viewports) ---------- */
+  .stage {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 20%, #2a2a2a, #0a0a0a 70%);
+  }
+  .phone {
+    position: relative;
+    width: 393px;
+    height: 852px;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: #fff;
+    border-radius: 55px;
+    box-shadow: 0 0 0 12px #1c1c1e, 0 0 0 13px #3a3a3c, 0 20px 60px rgba(0,0,0,0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 430px), (max-height: 900px) {
+    .phone {
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      box-shadow: none;
+    }
+  }
+
+  /* ---------- status bar ---------- */
+  .statusbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px 4px;
+    color: #000;
+  }
+  .statusbar .time {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .statusbar .time .person {
+    width: 15px; height: 15px;
+    opacity: 0.9;
+  }
+  .statusbar .icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .statusbar .g5 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-right: 1px;
+  }
+
+  /* ---------- top nav ---------- */
+  .topnav {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 10px 20px 14px;
+    gap: 14px;
+  }
+  .topnav .back {
+    background: none;
+    border: none;
+    font-size: 30px;
+    line-height: 1;
+    color: #1c1c1e;
+    font-weight: 300;
+    padding: 4px 6px 4px 0;
+  }
+  .topnav .titles { flex: 1; }
+  .topnav .title {
+    font-size: 26px;
+    font-weight: 800;
+    color: #1c1c1e;
+    letter-spacing: -0.3px;
+  }
+  .topnav .subtitle {
+    font-size: 14px;
+    color: #8a8a8e;
+    margin-top: 2px;
+  }
+  .topnav .info-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #f1f1f3;
+    color: #444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-style: italic;
+    font-family: Georgia, serif;
+  }
+
+  /* ---------- ticket card ---------- */
+  .ticket-wrap {
+    flex: 1 1 auto;
+    padding: 4px 16px 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .ticket-card {
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.10);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .illustration {
+    flex: 0 0 auto;
+    width: 100%;
+    height: clamp(120px, 24vh, 220px);
+    display: block;
+    background: #eee;
+  }
+  .illustration svg { width: 100%; height: 100%; display: block; }
+
+  .member-banner {
+    flex: 0 0 auto;
+    background: linear-gradient(180deg, #b28a2f, #9c7623);
+    color: #fff;
+    text-align: center;
+    padding: 11px 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    position: relative;
+  }
+  .member-banner .diamond {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 15px;
+    opacity: 0.85;
+  }
+  .member-banner .diamond.left { left: 28px; }
+  .member-banner .diamond.right { right: 28px; }
+
+  .qr-section {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(6px, 2vh, 18px) 0 clamp(4px, 1.5vh, 12px);
+    min-height: 0;
+    gap: clamp(4px, 1.2vh, 10px);
+  }
+  .live-time {
+    color: #1e8449;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .qr-wrap {
+    position: relative;
+    width: clamp(140px, 34vh, 220px);
+    height: clamp(140px, 34vh, 220px);
+  }
+  .qr-wrap canvas { width: 100%; height: 100%; display: block; }
+  .ball-shadow {
+    position: absolute;
+    left: -6px;
+    bottom: 2px;
+    width: 30px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.28);
+    filter: blur(1.5px);
+    transform-origin: center;
+  }
+  .tennis-ball {
+    position: absolute;
+    left: -4px;
+    bottom: 4px;
+    width: 26px;
+    height: 26px;
+    font-size: 24px;
+    line-height: 26px;
+    text-align: center;
+    user-select: none;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+  }
+  .ticket-number {
+    color: #9a9a9e;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scallop-divider {
+    flex: 0 0 auto;
+    position: relative;
+    height: 1px;
+    border-top: 1.5px dashed #dcdce0;
+    margin: 0 0;
+  }
+  .scallop-divider span {
+    position: absolute;
+    top: -11px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px #f0f0f2;
+  }
+  .scallop-divider span.left { left: -11px; }
+  .scallop-divider span.right { right: -11px; }
+
+  .details {
+    flex: 0 0 auto;
+    padding: clamp(10px, 2vh, 20px) 22px clamp(10px, 2.2vh, 22px);
+  }
+  .detail-row {
+    display: flex;
+    gap: 14px;
+    margin-bottom: clamp(8px, 1.8vh, 16px);
+  }
+  .detail-row:last-child { margin-bottom: 0; }
+  .detail { flex: 1; min-width: 0; }
+  .detail.small { flex: 0 0 auto; }
+  .detail .label {
+    color: #9a9a9e;
+    font-size: 12.5px;
+    margin-bottom: 3px;
+  }
+  .detail .value {
+    color: #1c1c1e;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .details hr {
+    border: none;
+    border-top: 1px solid #ececef;
+    margin: clamp(6px, 1.4vh, 12px) 0;
+  }
+
+  .home-indicator-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    padding: 8px 0 10px;
+  }
+  .home-indicator {
+    width: 134px;
+    height: 5px;
+    border-radius: 3px;
+    background: #1c1c1e;
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="phone">
+    <div class="statusbar">
+      <div class="time">
+        <span id="statusTime">13:26</span>
+        <svg class="person" viewBox="0 0 24 24" fill="#000"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+      </div>
+      <div class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12" fill="#000">
+          <rect x="0" y="8" width="3" height="4" rx="0.5"/>
+          <rect x="5" y="6" width="3" height="6" rx="0.5"/>
+          <rect x="10" y="3" width="3" height="9" rx="0.5"/>
+          <rect x="15" y="0" width="3" height="12" rx="0.5"/>
+        </svg>
+        <span class="g5">5G</span>
+        <svg width="25" height="13" viewBox="0 0 25 13" fill="none">
+          <rect x="0.5" y="0.5" width="21" height="12" rx="3" stroke="#000" stroke-opacity="0.4"/>
+          <rect x="2" y="2" width="12" height="9" rx="1.5" fill="#000"/>
+          <rect x="23" y="4" width="1.6" height="5" rx="0.8" fill="#000" fill-opacity="0.4"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="topnav">
+      <button class="back">‹</button>
+      <div class="titles">
+        <div class="title" id="dayTitle">Day 7 - 05 July</div>
+        <div class="subtitle">Ticket 1 of 1</div>
+      </div>
+      <div class="info-btn">i</div>
+    </div>
+
+    <div class="ticket-wrap">
+      <div class="ticket-card">
+        <div class="illustration">
+          <svg viewBox="0 0 400 220" preserveAspectRatio="xMidYMax slice">
+            <defs>
+              <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f6c9a8"/>
+                <stop offset="35%" stop-color="#eda9a0"/>
+                <stop offset="70%" stop-color="#c98bab"/>
+                <stop offset="100%" stop-color="#9c7bb0"/>
+              </linearGradient>
+              <radialGradient id="sun" cx="50%" cy="15%" r="55%">
+                <stop offset="0%" stop-color="#fff6df" stop-opacity="0.95"/>
+                <stop offset="100%" stop-color="#fff6df" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="roof" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3f7a3a"/>
+                <stop offset="100%" stop-color="#2c5c2a"/>
+              </linearGradient>
+              <linearGradient id="court" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3f8a3f"/>
+                <stop offset="100%" stop-color="#256b32"/>
+              </linearGradient>
+            </defs>
+
+            <rect x="0" y="0" width="400" height="220" fill="url(#sky)"/>
+            <rect x="0" y="0" width="400" height="220" fill="url(#sun)"/>
+
+            <!-- distant skyline -->
+            <g fill="#c9a9c2" opacity="0.5">
+              <rect x="10" y="120" width="10" height="60"/>
+              <rect x="26" y="105" width="8" height="75"/>
+              <rect x="370" y="115" width="9" height="65"/>
+              <rect x="384" y="100" width="7" height="80"/>
+            </g>
+
+            <!-- stadium roof -->
+            <path d="M40 150 Q60 60 200 55 Q340 60 360 150 Z" fill="url(#roof)"/>
+            <path d="M55 150 Q75 90 200 85 Q325 90 345 150 Z" fill="#4d8a48"/>
+            <g fill="#1f4a20" opacity="0.55">
+              <rect x="90" y="120" width="6" height="26"/>
+              <rect x="115" y="112" width="6" height="34"/>
+              <rect x="140" y="105" width="6" height="41"/>
+              <rect x="165" y="100" width="6" height="46"/>
+              <rect x="230" y="100" width="6" height="46"/>
+              <rect x="255" y="105" width="6" height="41"/>
+              <rect x="280" y="112" width="6" height="34"/>
+              <rect x="305" y="120" width="6" height="26"/>
+            </g>
+            <circle cx="200" cy="70" r="4.5" fill="#f4f1e8"/>
+
+            <!-- trees -->
+            <circle cx="30" cy="150" r="20" fill="#2f6b34"/>
+            <rect x="27" y="150" width="6" height="18" fill="#5b3a24"/>
+            <circle cx="378" cy="148" r="18" fill="#2f6b34"/>
+            <rect x="375" y="148" width="6" height="18" fill="#5b3a24"/>
+
+            <!-- foreground court -->
+            <path d="M0 220 L0 178 L400 178 L400 220 Z" fill="url(#court)"/>
+            <path d="M60 178 L340 178 L400 220 L0 220 Z" fill="#2f7a3a"/>
+            <path d="M120 178 L280 178 L340 220 L60 220 Z" fill="none" stroke="#f2efe3" stroke-width="2" opacity="0.85"/>
+            <line x1="200" y1="178" x2="200" y2="220" stroke="#f2efe3" stroke-width="2" opacity="0.7"/>
+            <line x1="150" y1="196" x2="250" y2="196" stroke="#f2efe3" stroke-width="1.6" opacity="0.6"/>
+
+            <!-- tiny crowd dots -->
+            <g fill="#333">
+              <circle cx="150" cy="158" r="2"/>
+              <circle cx="160" cy="160" r="2"/>
+              <circle cx="240" cy="159" r="2"/>
+              <circle cx="252" cy="161" r="2"/>
+              <circle cx="120" cy="163" r="1.8"/>
+              <circle cx="280" cy="163" r="1.8"/>
+            </g>
+            <g fill="#e8e2d0">
+              <circle cx="150" cy="153" r="2.2"/>
+              <circle cx="252" cy="155" r="2.2"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="member-banner">
+          <span class="diamond left">✦</span>
+          Member
+          <span class="diamond right">✦</span>
+        </div>
+
+        <div class="qr-section">
+          <div class="live-time" id="liveTime">1:26:27 pm</div>
+          <div class="qr-wrap">
+            <canvas id="qrCanvas" width="220" height="220"></canvas>
+            <div class="ball-shadow" id="ballShadow"></div>
+            <div class="tennis-ball" id="tennisBall">🎾</div>
+          </div>
+          <div class="ticket-number">28371172133402482267 0114</div>
+        </div>
+
+        <div class="scallop-divider">
+          <span class="left"></span>
+          <span class="right"></span>
+        </div>
+
+        <div class="details">
+          <div class="detail-row">
+            <div class="detail">
+              <div class="label">Court</div>
+              <div class="value">Centre Court</div>
+            </div>
+            <div class="detail">
+              <div class="label">Date</div>
+              <div class="value" id="ticketDate">Sun 05 Jul</div>
+            </div>
+          </div>
+          <div class="detail-row">
+            <div class="detail small"><div class="label">Stand</div><div class="value">Main Stand</div></div>
+            <div class="detail small"><div class="label">Gangway</div><div class="value">212</div></div>
+            <div class="detail small"><div class="label">Row</div><div class="value">F</div></div>
+            <div class="detail small"><div class="label">Seat</div><div class="value">339</div></div>
+          </div>
+          <hr>
+          <div class="detail-row">
+            <div class="detail">
+              <div class="label">Ticket holder</div>
+              <div class="value">igor vereshchetin</div>
+            </div>
+            <div class="detail">
+              <div class="label">Ticket Type</div>
+              <div class="value">Member Guest</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="home-indicator-wrap">
+      <div class="home-indicator"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- live clock (status bar + green ticket timestamp) ----------
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('statusTime').textContent =
+    pad(now.getHours()) + ':' + pad(now.getMinutes());
+
+  let h = now.getHours();
+  const ampm = h >= 12 ? 'pm' : 'am';
+  h = h % 12; if (h === 0) h = 12;
+  document.getElementById('liveTime').textContent =
+    h + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds()) + ' ' + ampm;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ---------- fake QR code render (decorative, deterministic pattern) ----------
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function drawQR(canvas) {
+  const modules = 25;
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const cell = size / modules;
+  const rand = mulberry32(283711721);
+
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#000';
+
+  const finder = (mx, my) => {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(mx * cell, my * cell, 7 * cell, 7 * cell);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect((mx + 1) * cell, (my + 1) * cell, 5 * cell, 5 * cell);
+    ctx.fillStyle = '#000';
+    ctx.fillRect((mx + 2) * cell, (my + 2) * cell, 3 * cell, 3 * cell);
+  };
+
+  const inFinderZone = (x, y) =>
+    (x < 8 && y < 8) || (x >= modules - 8 && y < 8) || (x < 8 && y >= modules - 8);
+
+  for (let y = 0; y < modules; y++) {
+    for (let x = 0; x < modules; x++) {
+      if (inFinderZone(x, y)) continue;
+      if (rand() > 0.55) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+  }
+
+  finder(0, 0);
+  finder(modules - 7, 0);
+  finder(0, modules - 7);
+}
+drawQR(document.getElementById('qrCanvas'));
+
+// ---------- bouncing tennis ball physics ----------
+const ball = document.getElementById('tennisBall');
+const shadow = document.getElementById('ballShadow');
+const groundY = 4;      // matches .tennis-ball bottom offset
+const ballSize = 26;
+let vy = 0;
+let y = groundY;
+const gravity = 0.85;
+const restitution = 0.78;
+let squash = 1;
+
+function step() {
+  vy += gravity;
+  y -= vy;
+
+  if (y <= groundY) {
+    y = groundY;
+    vy = -vy * restitution;
+    squash = 0.6;                 // squash on impact
+    if (Math.abs(vy) < 2) {
+      vy = -16 - Math.random() * 4; // keep the ball alive with a fresh bounce
+    }
+  }
+
+  squash += (1 - squash) * 0.25;  // ease back to round
+
+  const heightFrac = Math.min(1, (y - groundY) / 130);
+  ball.style.transform = `translateY(${-(y - groundY)}px) scaleY(${squash}) scaleX(${2 - squash})`;
+  shadow.style.transform = `scale(${1 - heightFrac * 0.55})`;
+  shadow.style.opacity = 0.32 - heightFrac * 0.18;
+
+  requestAnimationFrame(step);
+}
+vy = -18;
+requestAnimationFrame(step);
+</script>
+</body>
+</html>
