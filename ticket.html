@@ -32,6 +32,8 @@
     height: 852px;
     max-width: 100vw;
     max-height: 100vh;
+    max-height: calc(var(--vh, 1vh) * 100);
+    max-height: 100dvh;
     background: #fff;
     border-radius: 55px;
     box-shadow: 0 0 0 12px #1c1c1e, 0 0 0 13px #3a3a3c, 0 20px 60px rgba(0,0,0,0.6);
@@ -43,12 +45,32 @@
     .phone {
       width: 100vw;
       height: 100vh;
+      height: calc(var(--vh, 1vh) * 100);
+      height: 100dvh;
       border-radius: 0;
       box-shadow: none;
     }
     .statusbar { padding-top: max(18px, env(safe-area-inset-top)); }
     .home-indicator-wrap { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
   }
+
+  /* ---------- "add to home screen" hint (shown only when running as a normal browser tab,
+     since Safari's own chrome already provides a status bar in that case) ---------- */
+  .add-hint {
+    display: none;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 16px;
+    background: #1c1c1e;
+    color: #f2f2f2;
+    font-size: 12.5px;
+    text-align: center;
+    line-height: 1.35;
+  }
+  body.not-standalone .add-hint { display: flex; }
+  body.not-standalone .statusbar { display: none; }
 
   /* ---------- status bar ---------- */
   .statusbar {
@@ -138,7 +160,9 @@
     background: #fff;
     border-radius: 22px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.10);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
@@ -148,7 +172,7 @@
   .illustration {
     flex: 0 0 auto;
     width: 100%;
-    height: clamp(120px, 24vh, 220px);
+    height: clamp(80px, 20vh, 220px);
     display: block;
     background: #eee;
   }
@@ -176,14 +200,14 @@
   .member-banner .diamond.right { right: 28px; }
 
   .qr-section {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: clamp(6px, 2vh, 18px) 0 clamp(4px, 1.5vh, 12px);
+    padding: clamp(4px, 2vh, 18px) 0 clamp(3px, 1.5vh, 12px);
     min-height: 0;
-    gap: clamp(4px, 1.2vh, 10px);
+    gap: clamp(3px, 1.2vh, 10px);
   }
   .live-time {
     color: #1e8449;
@@ -294,6 +318,7 @@
 
 <div class="stage">
   <div class="phone">
+    <div class="add-hint">Tap <strong>Share ⬆</strong> → <strong>Add to Home Screen</strong>, then open it from there for the full-screen view</div>
     <div class="statusbar">
       <div class="time">
         <span id="statusTime">13:26</span>
@@ -464,6 +489,20 @@
 </div>
 
 <script>
+// ---------- real viewport height (Safari's address/tab bars shrink the visible area) ----------
+function setVH() {
+  document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+}
+setVH();
+window.addEventListener('resize', setVH);
+window.addEventListener('orientationchange', setVH);
+
+// ---------- only show the fake status bar once installed to the Home Screen; otherwise
+// Safari already draws its own, real one and the two would stack ----------
+const isStandalone = window.navigator.standalone === true ||
+  window.matchMedia('(display-mode: standalone)').matches;
+document.body.classList.add(isStandalone ? 'standalone' : 'not-standalone');
+
 // ---------- live clock (status bar + green ticket timestamp) ----------
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
