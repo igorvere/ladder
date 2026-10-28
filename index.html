@@ -233,7 +233,7 @@
 </head>
 <body>
 
-<header>🎾 Tennis Ladder <a class="rules-link" href="rules.html">Rules</a></header>
+<header>🎾 Tennis Ladder <a class="rules-link" id="rulesLink" href="rules.html">Rules</a></header>
 
 <div class="tabs" id="tabs"></div>
 
@@ -253,10 +253,25 @@
 
 <script>
 const PERIODS = [
-  { label: 'Q2 2026', id: '1yEUFsPAidv5MTFOB7ZTNdETZUin-BXvzAqXTpp6m68M' },
-  { label: 'Q1 2026', id: '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc' },
+  {
+    label: 'Q4 2026',
+    id: '1ByQ-rg9j14xXhVqVWDCTMA7jvEf-2l9bTP3rLXsc4GA',
+    sheets: ['Ladder 4', 'Ladder 5', 'Ladder 6', 'Women'],
+    rulesSheet: 'Rules',
+  },
+  {
+    label: 'Q2 2026',
+    id: '1yEUFsPAidv5MTFOB7ZTNdETZUin-BXvzAqXTpp6m68M',
+    sheets: ['Ladder 3', 'Ladder 4', 'Ladder 5'],
+    rulesSheet: 'Overview',
+  },
+  {
+    label: 'Q1 2026',
+    id: '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc',
+    sheets: ['Ladder 3', 'Ladder 4', 'Ladder 5'],
+    rulesSheet: 'Overview',
+  },
 ];
-const LADDER_SHEETS = ['Ladder 3', 'Ladder 4', 'Ladder 5'];
 
 // Column indices (0-based)
 const RANK_COLS  = { start: 0,  end: 15 };  // A–P
@@ -285,9 +300,10 @@ const _urlParams = new URLSearchParams(location.search);
 const _urlSheet  = _urlParams.get('ladder');
 const _urlPlayer = _urlParams.get('player');
 const _urlPeriod = _urlParams.get('period');
-let currentSheet  = (LADDER_SHEETS.includes(_urlSheet) ? _urlSheet : null) || LADDER_SHEETS[0];
+let currentSheet;
 let currentPlayer = _urlPlayer || null;
 let currentPeriod = PERIODS.find(p => p.label === _urlPeriod) || PERIODS[0];
+currentSheet = currentPeriod.sheets.includes(_urlSheet) ? _urlSheet : currentPeriod.sheets[0];
 
 function updateUrl(sheet, player) {
   const p = new URLSearchParams();
@@ -296,6 +312,13 @@ function updateUrl(sheet, player) {
   if (player) p.set('player', player);
   const qs = p.toString();
   history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+  updateRulesLink();
+}
+
+function updateRulesLink() {
+  const p = new URLSearchParams();
+  if (currentPeriod.label !== PERIODS[0].label) p.set('period', currentPeriod.label);
+  document.getElementById('rulesLink').href = 'rules.html' + (p.size ? '?' + p.toString() : '');
 }
 
 function csvUrl(sheet) {
@@ -855,10 +878,11 @@ document.getElementById('search').addEventListener('keydown', e => {
 function buildTabs() {
   const tabsEl = document.getElementById('tabs');
   const toolbar = document.getElementById('toolbar');
+  tabsEl.innerHTML = '';
 
-  LADDER_SHEETS.forEach((name, i) => {
+  currentPeriod.sheets.forEach(name => {
     const btn = document.createElement('div');
-    btn.className = 'tab' + (i === 0 ? ' active' : '');
+    btn.className = 'tab' + (name === currentSheet ? ' active' : '');
     btn.textContent = name;
     btn.onclick = () => {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -888,9 +912,11 @@ function buildPeriodSelect() {
   sel.addEventListener('change', () => {
     currentPeriod = PERIODS.find(p => p.label === sel.value) || PERIODS[0];
     Object.keys(cache).forEach(k => delete cache[k]);
+    currentSheet = currentPeriod.sheets[0];
     currentPlayer = null;
     document.getElementById('search').value = '';
     document.getElementById('clearBtn').classList.remove('visible');
+    buildTabs();
     updateUrl(currentSheet, null);
     showSheet(currentSheet, null);
   });
@@ -898,6 +924,7 @@ function buildPeriodSelect() {
 
 buildTabs();
 buildPeriodSelect();
+updateRulesLink();
 // Activate tab matching URL param
 document.querySelectorAll('.tab').forEach(btn => {
   if (btn.textContent === currentSheet) btn.classList.add('active');

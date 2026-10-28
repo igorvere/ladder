@@ -69,13 +69,22 @@
 
 <header>
   🎾 Tennis Ladder
-  <a href="index.html">← Back to Ladder</a>
+  <a id="ladderLink" href="index.html">← Back to Ladder</a>
 </header>
 
 <div id="content"><div class="loading">Loading rules…</div></div>
 
 <script>
-const SHEET_ID = '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc';
+const PERIODS = [
+  { label: 'Q4 2026', id: '1ByQ-rg9j14xXhVqVWDCTMA7jvEf-2l9bTP3rLXsc4GA', rulesSheet: 'Rules' },
+  { label: 'Q2 2026', id: '1yEUFsPAidv5MTFOB7ZTNdETZUin-BXvzAqXTpp6m68M', rulesSheet: 'Overview' },
+  { label: 'Q1 2026', id: '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc', rulesSheet: 'Overview' },
+];
+const requestedPeriod = new URLSearchParams(location.search).get('period');
+const currentPeriod = PERIODS.find(p => p.label === requestedPeriod) || PERIODS[0];
+if (currentPeriod.label !== PERIODS[0].label) {
+  document.getElementById('ladderLink').href = `index.html?period=${encodeURIComponent(currentPeriod.label)}`;
+}
 
 function parseCSV(text) {
   const rows = [];
@@ -169,7 +178,7 @@ function formatRules(text) {
 async function load() {
   const content = document.getElementById('content');
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Overview`;
+    const url = `https://docs.google.com/spreadsheets/d/${currentPeriod.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(currentPeriod.rulesSheet)}`;
     const resp = await fetch(url);
     const text = await resp.text();
     const rows = parseCSV(text);
