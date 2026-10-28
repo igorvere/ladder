@@ -103,6 +103,13 @@
     }
     .clear-btn.visible { display: inline-block; }
     .timestamp { margin-left: auto; font-size: 0.78rem; color: #999; }
+    .spreadsheet-link {
+      color: #1a5276;
+      font-size: 0.85rem;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .spreadsheet-link:hover { text-decoration: underline; }
     .period-select {
       padding: 7px 10px;
       border: 1px solid #ccc;
@@ -244,6 +251,7 @@
   </div>
   <button class="clear-btn" id="clearBtn" onclick="clearPlayer()">✕ Clear</button>
   <span class="timestamp" id="timestamp"></span>
+  <a class="spreadsheet-link" id="spreadsheetLink" href="#" target="_blank" rel="noopener">View spreadsheet ↗</a>
   <select id="periodSelect" class="period-select"></select>
 </div>
 
@@ -258,18 +266,21 @@ const PERIODS = [
     id: '1ByQ-rg9j14xXhVqVWDCTMA7jvEf-2l9bTP3rLXsc4GA',
     sheets: ['Ladder 4', 'Ladder 5', 'Ladder 6', 'Women'],
     rulesSheet: 'Rules',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1ByQ-rg9j14xXhVqVWDCTMA7jvEf-2l9bTP3rLXsc4GA/edit?gid=2095775912#gid=2095775912',
   },
   {
     label: 'Q2 2026',
     id: '1yEUFsPAidv5MTFOB7ZTNdETZUin-BXvzAqXTpp6m68M',
     sheets: ['Ladder 3', 'Ladder 4', 'Ladder 5'],
     rulesSheet: 'Overview',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1yEUFsPAidv5MTFOB7ZTNdETZUin-BXvzAqXTpp6m68M/edit',
   },
   {
     label: 'Q1 2026',
     id: '1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc',
     sheets: ['Ladder 3', 'Ladder 4', 'Ladder 5'],
     rulesSheet: 'Overview',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1qNg4ZjAMNY9-KRWO0LpbXUckdHlXwrfaPr24-d9ewTc/edit',
   },
 ];
 
@@ -319,6 +330,10 @@ function updateRulesLink() {
   const p = new URLSearchParams();
   if (currentPeriod.label !== PERIODS[0].label) p.set('period', currentPeriod.label);
   document.getElementById('rulesLink').href = 'rules.html' + (p.size ? '?' + p.toString() : '');
+}
+
+function updateSpreadsheetLink() {
+  document.getElementById('spreadsheetLink').href = currentPeriod.spreadsheetUrl;
 }
 
 function csvUrl(sheet) {
@@ -918,6 +933,7 @@ function buildPeriodSelect() {
     document.getElementById('clearBtn').classList.remove('visible');
     buildTabs();
     updateUrl(currentSheet, null);
+    updateSpreadsheetLink();
     showSheet(currentSheet, null);
   });
 }
@@ -925,6 +941,7 @@ function buildPeriodSelect() {
 buildTabs();
 buildPeriodSelect();
 updateRulesLink();
+updateSpreadsheetLink();
 // Activate tab matching URL param
 document.querySelectorAll('.tab').forEach(btn => {
   if (btn.textContent === currentSheet) btn.classList.add('active');
