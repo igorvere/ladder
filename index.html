@@ -236,6 +236,20 @@
 
     .loading { padding: 40px; text-align: center; color: #888; }
     .error { padding: 20px; color: #c0392b; background: #fdecea; border-radius: 6px; }
+
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; font-size: 1.15rem; }
+      .tabs { padding: 12px 12px 0; overflow-x: auto; }
+      .tab { padding: 9px 16px; white-space: nowrap; }
+      .toolbar { padding: 10px 16px; flex-wrap: wrap; gap: 7px; }
+      .search-wrap { flex: 1 0 100%; order: 1; }
+      .search-wrap input { width: 100%; }
+      .clear-btn { order: 2; }
+      .spreadsheet-link { order: 3; font-size: 0.8rem; }
+      .period-select { order: 4; margin-left: auto; font-size: 0.8rem; }
+      .timestamp { order: 5; flex: 1 0 100%; margin-left: 0; font-size: 0.72rem; }
+      .content { padding: 16px; }
+    }
   </style>
 </head>
 <body>
